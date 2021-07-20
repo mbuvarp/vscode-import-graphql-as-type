@@ -10,11 +10,16 @@
     "Other"
   ],
   "activationEvents": [
+    "onCommand:import-graphql-as-type.importNode",
     "onCommand:import-graphql-as-type.reloadSchema"
   ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
+      {
+        "command": "import-graphql-as-type.importNode",
+        "title": "IGaT: Import Node"
+      },
       {
         "command": "import-graphql-as-type.reloadSchema",
         "title": "IGaT: Reload Schema"

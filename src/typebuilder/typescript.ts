@@ -27,7 +27,19 @@ export class TypeScriptBuilder extends TypeBuilder {
   }
 
   build() {
-    console.log(this.parsedNode)
-    return this.parsedNode.name
+    const fields = this.parsedNode.fields.map(field => {
+      let ret = '  '
+      ret += field.name + ': '
+      ret += field.type
+      ret += field.nullable ? ' | null' : ''
+
+      if (!!field.description) ret = '  /* ' + field.description + ' */\n' + ret
+
+      return ret
+    })
+
+    return `export interface ${this.parsedNode.name} {
+${fields.join('\n')}
+}`
   }
 }
