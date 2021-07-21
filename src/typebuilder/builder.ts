@@ -1,5 +1,6 @@
 import * as vscode from 'vscode'
 import { GraphQLField, GraphQLObjectType } from 'graphql'
+import { getConfigSetting } from '../util/config'
 
 export interface ParsedField {
   name: string
@@ -11,6 +12,11 @@ export interface ParsedField {
 export interface ParsedNode {
   name: string
   fields: ParsedField[]
+}
+
+export interface TypeConversion {
+  pattern: string
+  replace: string
 }
 
 export abstract class TypeBuilder {
@@ -27,7 +33,7 @@ export abstract class TypeBuilder {
     protected allNodes: GraphQLObjectType[]
   ) {}
 
-  private static getType(field: GraphQLField<any, any>) {
+  private static getTypeInfo(field: GraphQLField<any, any>) {
     let typeString = field.type.inspect()
     const nullable = !typeString.endsWith('!')
 
@@ -47,19 +53,47 @@ export abstract class TypeBuilder {
     }
   }
 
+  private async getFullType(typeString: string, array: boolean) {
+    const conversions = await getConfigSetting<TypeConversion[]>(
+      'typeConversions',
+      {
+        validator: value =>
+          Array.isArray(value) &&
+          value.every(
+            val =>
+              typeof val === 'object' &&
+              typeof val['pattern' as any] === 'string' &&
+              typeof val['replace' as any] === 'string'
+          ),
+      }
+    )
+
+    if (conversions !== null) {
+      for (const conversion of conversions) {
+        const pattern = new RegExp(conversion.pattern)
+        const match = typeString.match(pattern)
+        if (!match) continue
+
+        return typeString.replace(pattern, conversion.replace)
+      }
+    }
+
+    return this.convertType(typeString, array)
+  }
+
   private async loadNode(node: GraphQLObjectType): Promise<ParsedNode> {
     const nodeFields = Object.values(node.getFields())
     const fields: ParsedField[] = []
 
     for (const field of nodeFields) {
-      const { typeString, nullable, array } = TypeBuilder.getType(field)
-      const type = this.convertType(typeString, array)
+      const { typeString, nullable, array } = TypeBuilder.getTypeInfo(field)
+      const type = await this.getFullType(typeString, array)
 
       // If type is null, try searching for type in all nodes
       if (
         !this.skipSearch &&
         type === null &&
-        type !== node.name &&
+        typeString !== node.name &&
         !this.seenNodeNames.includes(typeString)
       ) {
         this.seenNodeNames.push(typeString)

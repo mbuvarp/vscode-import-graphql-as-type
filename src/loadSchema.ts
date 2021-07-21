@@ -2,12 +2,16 @@ import * as vscode from 'vscode'
 import { loadSchema as load } from '@graphql-tools/load'
 import { UrlLoader } from '@graphql-tools/url-loader'
 import { GraphQLInterfaceType } from 'graphql'
-
-const schemaUrl = 'http://localhost:8000/graphql'
+import { getConfigSetting } from './util/config'
 
 export async function loadSchema() {
+  const url = await getConfigSetting('host', {
+    showError: true,
+  })
+  if (!url) return null
+
   try {
-    const schema = await load(schemaUrl, {
+    const schema = await load(url, {
       loaders: [new UrlLoader()],
     })
 
@@ -21,5 +25,6 @@ export async function loadSchema() {
     return nodes
   } catch {
     vscode.window.showErrorMessage('IGaT: Could not load schema')
+    return null
   }
 }
