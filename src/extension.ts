@@ -1,6 +1,10 @@
+import { GraphQLObjectType } from 'graphql'
 import * as vscode from 'vscode'
 import { loadSchema } from './loadSchema'
+import { TypeBuilder } from './typebuilder/builder'
 import { TypeScriptBuilder } from './typebuilder/typescript'
+
+type SupportedLanguage = 'typescript'
 
 async function startup() {
   const nodes = await vscode.window.withProgress(
@@ -11,6 +15,7 @@ async function startup() {
     },
     () => loadSchema()
   )
+  if (!nodes) return []
 
   return nodes.objects.map(node => ({
     label: node.name,
@@ -18,7 +23,7 @@ async function startup() {
   }))
 }
 
-function initImport(): [vscode.TextEditor | null, string | null] {
+function initImport(): [vscode.TextEditor | null, SupportedLanguage | null] {
   const editor = vscode.window.activeTextEditor
   if (!editor) {
     vscode.window.showInformationMessage(
@@ -37,11 +42,26 @@ function initImport(): [vscode.TextEditor | null, string | null] {
     return [null, null]
   }
 
-  return [editor, lang]
+  const finalLang = allowedLanguages[
+    lang as keyof typeof allowedLanguages
+  ] as SupportedLanguage
+
+  return [editor, finalLang]
+}
+
+function getBuilder(
+  lang: SupportedLanguage,
+  node: GraphQLObjectType,
+  allNodes: GraphQLObjectType[]
+): TypeBuilder {
+  switch (lang) {
+    case 'typescript':
+      return new TypeScriptBuilder(node, allNodes)
+  }
 }
 
 export async function activate(context: vscode.ExtensionContext) {
-  let nodes = await startup()
+  let qpOptions = await startup()
 
   const importNode = vscode.commands.registerCommand(
     'import-graphql-as-type.importNode',
@@ -49,13 +69,18 @@ export async function activate(context: vscode.ExtensionContext) {
       const [editor, language] = initImport()
       if (!editor || !language) return
 
-      const obj = await vscode.window.showQuickPick(nodes)
-      if (!obj) return
+      const qpPick = await vscode.window.showQuickPick(qpOptions)
+      if (!qpPick) return
 
-      const builder = new TypeScriptBuilder(obj.node)
-      const typeString = builder.build()
+      const allNodes = qpOptions.map(opt => opt.node)
+
+      const builder = getBuilder(language, qpPick.node, allNodes)
+      await builder.load()
+
+      const typeString = builder.buildAll()
       if (!typeString) return
 
+      // Insert text
       const document = editor.document
       editor.edit(editBuilder =>
         editor.selections.forEach(sel => {
@@ -72,7 +97,7 @@ export async function activate(context: vscode.ExtensionContext) {
   const reloadSchema = vscode.commands.registerCommand(
     'import-graphql-as-type.reloadSchema',
     async () => {
-      nodes = await startup()
+      qpOptions = await startup()
     }
   )
 

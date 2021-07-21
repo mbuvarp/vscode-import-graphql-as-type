@@ -1,7 +1,9 @@
-import { TypeBuilder } from './abstract'
+import { ParsedNode, TypeBuilder } from './builder'
 
 export class TypeScriptBuilder extends TypeBuilder {
-  convertType(type: string) {
+  convertType(type: string, array: boolean) {
+    const arraySuffix = array ? '[]' : ''
+
     switch (type) {
       case 'ID':
       case 'String':
@@ -11,23 +13,23 @@ export class TypeScriptBuilder extends TypeBuilder {
       case 'TimeDelta':
       case 'JSONString':
       case 'Base64':
-        return 'string'
+        return 'string' + arraySuffix
 
       case 'Int':
       case 'Float':
       case 'Decimal':
-        return 'number'
+        return 'number' + arraySuffix
 
       case 'Boolean':
-        return 'boolean'
+        return 'boolean' + arraySuffix
 
       default:
-        return type
+        return null
     }
   }
 
-  build() {
-    const fields = this.parsedNode.fields.map(field => {
+  build(node: ParsedNode) {
+    const fields = node.fields.map(field => {
       let ret = '  '
       ret += field.name + ': '
       ret += field.type
@@ -38,7 +40,7 @@ export class TypeScriptBuilder extends TypeBuilder {
       return ret
     })
 
-    return `export interface ${this.parsedNode.name} {
+    return `export interface ${node.name} {
 ${fields.join('\n')}
 }`
   }
